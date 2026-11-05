@@ -7,6 +7,10 @@
 //   __harp.view("player"), __harp.night(true)
 //   __harp.look([x, y, z], [tx, ty, tz], fov)   a fixed camera (null: back)
 //   __harp.useRecordings(false)    the voice made in code
+//
+// With ?debug in the address, a small readout in the top-left corner shows
+// both hands, their tips on the air strings and the sound (to see what a
+// webcam does).
 import { useEffect } from "react";
 import { useThree } from "@react-three/fiber";
 import { Vector3 } from "three";
@@ -14,13 +18,59 @@ import { Vector3 } from "three";
 import { meter, samples, sound } from "./audio";
 import { cameraOverride } from "./CameraRig";
 import { ghostTip } from "./GhostHand";
+import { air, hands, SIDES } from "./Hands";
 import { rig } from "./Harp";
 import type { View } from "./layout";
 import { pointer } from "./PointerInput";
 import { damp, harp, pluck, setNight, setView, sweep } from "./state";
-import { stringOf } from "./strings";
+import { stringOf, STRINGS } from "./strings";
+
+/** The ?debug readout: a plain text box, refreshed a few times a second. */
+const useReadout = () => {
+  useEffect(() => {
+    if (!new URLSearchParams(window.location.search).has("debug"))
+      return undefined;
+    const box = document.createElement("pre");
+    Object.assign(box.style, {
+      position: "fixed",
+      left: "8px",
+      top: "60px",
+      zIndex: "60",
+      margin: "0",
+      padding: "8px 10px",
+      borderRadius: "10px",
+      background: "rgb(0 0 0 / .7)",
+      color: "#fff",
+      font: "11px/1.4 ui-monospace, monospace",
+      pointerEvents: "none",
+    });
+    document.body.appendChild(box);
+    const yes = (b: boolean) => (b ? "yes" : "no");
+    const t = window.setInterval(() => {
+      const lines = SIDES.map((side) => {
+        const seen = air.seen.get(side);
+        if (!hands.tracked[side] || !seen) return `${side} hand no`;
+        const slot = Math.round(seen.slot);
+        const k = air.flip ? STRINGS.length - 1 - slot : slot;
+        const note = STRINGS[k]?.note ?? "-";
+        return `${side} hand yes  tip x ${seen.x.toFixed(3)} y ${seen.y.toFixed(3)}  string ${slot} ${note}  band ${yes(seen.inBand)}  fist ${yes(hands.fist[side])}`;
+      });
+      const last = STRINGS[hands.lastString]?.note ?? "-";
+      box.textContent = [
+        ...lines,
+        `plucks ${hands.plucks}  damps ${hands.damps}  last ${last} (${hands.lastTip ?? "-"})  order ${air.flip ? "high left" : "low left"}`,
+        `sound ${sound.unlocked ? "started" : "not started"} ${sound.voiceKind}  peak ${meter.peak.toFixed(2)}`,
+      ].join("\n");
+    }, 200);
+    return () => {
+      window.clearInterval(t);
+      box.remove();
+    };
+  }, []);
+};
 
 const DevDebug = () => {
+  useReadout();
   const camera = useThree((st) => st.camera);
   const scene = useThree((st) => st.scene);
   useEffect(() => {
@@ -34,6 +84,8 @@ const DevDebug = () => {
       samples,
       pointer,
       ghostTip,
+      hands,
+      air,
       /** The output's level and low end right now. */
       levels: () => ({ ...sound.last }),
       pluck: (s: string | number, velocity = 0.6) => {

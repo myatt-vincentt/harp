@@ -1,9 +1,10 @@
 // The ghost pluck hand (gold): its index finger reaches into the strings
-// from your side of the harp. It follows the pointer over the strings, its
-// index tip where the pointer is, and points while you play; played by the
+// from your side of the harp. It follows the fingertip that played last (at
+// the string it is over, as high on the strings as it is in the picture),
+// or the pointer over the strings, and points while you play; played by the
 // keys, it moves to each string as it sounds (a glissando sweeps it along
 // the strings). Left alone it rests between E4 and F4 and slowly opens; a
-// damp shows a fist. It never moves the harp: only the camera changes.
+// fist (yours, or a damp) shows a fist. It never moves the harp: only the camera changes.
 import { useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Group, Quaternion, Vector3, type Object3D } from "three";
@@ -12,9 +13,11 @@ import { dressGhost, ghostMaterial } from "./ghost";
 import { rig } from "./Harp";
 import { HAND_REST, HAND_TURN } from "./layout";
 import { MODELS, useOptionalModel } from "./models";
+import { AIR } from "./air";
+import { air, hands, heightOn, SIDES } from "./Hands";
 import { pointer } from "./PointerInput";
 import { harp, plucksSince } from "./state";
-import { spanAt, STRINGS } from "./strings";
+import { SPACING, spanAt, STRINGS } from "./strings";
 
 /** The hand's poses: pointing (plays), open (resting), a fist (damp). */
 const POSES = ["PluckHand_Point", "PluckHand_Open", "PluckHand_Fist"] as const;
@@ -92,20 +95,47 @@ export const GhostHand = () => {
     const dt = Math.min(rawDt, 0.1);
     const s = st.current;
     const now = performance.now() / 1000;
-    // Keys (and the hands later): the hand goes to each string as it sounds.
+    // Keys: the hand goes to each string as it sounds.
     plucksSince(s.seq).some((e) => {
       if (e.at > now) return true;
       s.seq = e.seq;
-      if (e.by !== "pointer") {
+      if (e.by === "keys") {
         s.keyAt = e.at;
         s.keyX = STRINGS[e.string].x;
         s.keyY = e.y;
       }
       return false;
     });
+    // Your hands: the tip that played last (or, before any, the one that moved last).
+    let side: (typeof SIDES)[number] | null = null;
+    if (hands.lastTip && hands.tracked[hands.lastTip]) side = hands.lastTip;
+    SIDES.forEach((sd) => {
+      if (
+        hands.tracked[sd] &&
+        hands.movedAt[sd] > hands.playedAt + FOLLOW.hold &&
+        (!side || hands.movedAt[sd] > hands.movedAt[side])
+      )
+        side = sd;
+    });
+    const seen = side ? air.seen.get(side) : undefined;
+    const handAt = side ? Math.max(hands.movedAt[side], hands.playedAt) : -1e9;
     let rate = FOLLOW.back;
     const usePointer = pointer.over && now - pointer.at < FOLLOW.hold;
-    if (usePointer && pointer.at >= s.keyAt) {
+    if (
+      seen &&
+      seen.inBand &&
+      now - handAt < 2 * FOLLOW.hold &&
+      handAt >= pointer.at &&
+      handAt >= s.keyAt
+    ) {
+      // The air slot as a string (the screen's order), then onto the harp.
+      const slot = air.flip ? STRINGS.length - 1 - seen.slot : seen.slot;
+      const f = Math.min(STRINGS.length - 1, Math.max(0, slot));
+      const near = Math.round(f);
+      const h = (seen.y - AIR.top) / (AIR.bottom - AIR.top);
+      want.set(STRINGS[0].x + f * SPACING, heightOn(near, h), FOLLOW.play);
+      rate = FOLLOW.pointer;
+    } else if (usePointer && pointer.at >= s.keyAt) {
       want.set(pointer.x, pointer.y, pointer.down ? FOLLOW.play : FOLLOW.hover);
       rate = FOLLOW.pointer;
     } else if (now - s.keyAt < FOLLOW.hold) {
@@ -126,8 +156,9 @@ export const GhostHand = () => {
     hand.holder.position.copy(ghostTip).sub(tmp.v);
 
     let pose: Pose = "PluckHand_Point";
-    const lastPlay = Math.max(harp.playedAt, pointer.at);
-    if (now - harp.dampedAt < FIST_HOLD) pose = "PluckHand_Fist";
+    const lastPlay = Math.max(harp.playedAt, pointer.at, handAt);
+    const fist = SIDES.some((sd) => hands.tracked[sd] && hands.fist[sd]);
+    if (now - harp.dampedAt < FIST_HOLD || fist) pose = "PluckHand_Fist";
     else if (!pointer.down && now - lastPlay > OPEN_AFTER)
       pose = "PluckHand_Open";
     POSES.forEach((p) => {

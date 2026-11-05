@@ -190,6 +190,15 @@ const Pic = ({ children }: { children: ReactNode }) => (
   </svg>
 );
 
+/** A pointing hand. */
+const PicPoint = () => (
+  <Pic>
+    <rect x="1.5" y="3.5" width="21" height="17" rx="3" opacity=".45" />
+    <path d="M6 5.5v15M9.5 5.5v15M17.5 5.5v15" opacity=".45" />
+    <path d="M13 18.5v-9a1 1 0 0 1 2 0v4.5l2.5.6a1.5 1.5 0 0 1 1.1 1.7l-.4 2.2" />
+    <path d="M13 13.5l-1.4-1.2a.9.9 0 0 0-1.3 1.2l2 3.3" />
+  </Pic>
+);
 /** A finger sweeping across four strings: a glissando. */
 const PicSweep = () => (
   <Pic>
@@ -198,19 +207,11 @@ const PicSweep = () => (
     <path d="M18.6 9.6L21 11.5l-2.4 1.6" />
   </Pic>
 );
-/** A fingertip tapping one string. */
-const PicTap = () => (
+/** Fast and slow: louder. */
+const PicLoud = () => (
   <Pic>
-    <path d="M6 3v18M18 3v18" opacity=".4" />
-    <path d="M12 3v18" />
-    <circle cx="12" cy="12" r="3.2" opacity=".8" />
-  </Pic>
-);
-/** A computer key. */
-const PicKeys = () => (
-  <Pic>
-    <rect x="2.5" y="7" width="19" height="10" rx="2.5" opacity=".7" />
-    <path d="M6 10.5h1M9.5 10.5h1M13 10.5h1M16.5 10.5h1M7.5 13.8h9" />
+    <path d="M4 9.5h3l4-3.5v12l-4-3.5H4z" />
+    <path d="M14.5 9a4 4 0 0 1 0 6M17 6.5a7.5 7.5 0 0 1 0 11" opacity=".75" />
   </Pic>
 );
 /** A fist: the strings stop. */
@@ -218,6 +219,13 @@ const PicFist = () => (
   <Pic>
     <path d="M7 10.5V9a1.5 1.5 0 0 1 3 0v-.5a1.5 1.5 0 0 1 3 0V9a1.5 1.5 0 0 1 3 0v1a1.5 1.5 0 0 1 3 0v3a7 7 0 0 1-7 7h-1a5 5 0 0 1-5-5v-4.5Z" />
     <path d="M7 13.5c1.6 0 3.2-.6 4.3-1.7" />
+  </Pic>
+);
+/** A computer key. */
+const PicKeys = () => (
+  <Pic>
+    <rect x="2.5" y="7" width="19" height="10" rx="2.5" opacity=".7" />
+    <path d="M6 10.5h1M9.5 10.5h1M13 10.5h1M16.5 10.5h1M7.5 13.8h9" />
   </Pic>
 );
 
@@ -234,15 +242,27 @@ const Keys = ({ keys }: { keys: string[] }) => (
 type Step = { key: string; pic: ReactNode; text: ReactNode; tint?: string };
 const STEPS: Step[] = [
   {
-    key: "sweep",
-    pic: <PicSweep />,
-    text: "Drag across the strings to play them: faster is louder",
+    key: "point",
+    pic: <PicPoint />,
+    text: "Pass your index finger across the strings in the camera",
     tint: GOLD.base,
   },
   {
-    key: "tap",
-    pic: <PicTap />,
-    text: "Tap a string to pluck it",
+    key: "sweep",
+    pic: <PicSweep />,
+    text: "Sweep for a glissando",
+    tint: GOLD.base,
+  },
+  {
+    key: "loud",
+    pic: <PicLoud />,
+    text: "Faster = louder",
+    tint: GOLD.base,
+  },
+  {
+    key: "fist",
+    pic: <PicFist />,
+    text: "Make a fist to stop",
     tint: GOLD.base,
   },
   {
@@ -250,18 +270,8 @@ const STEPS: Step[] = [
     pic: <PicKeys />,
     text: (
       <>
-        <Keys keys={["A", "S", "D", "F", "G", "H", "J", "K"]} /> play C4 to C5,
-        with Shift an octave up
-      </>
-    ),
-  },
-  {
-    key: "stop",
-    pic: <PicFist />,
-    text: (
-      <>
-        <Keys keys={["Space"]} /> a glissando, <Keys keys={["Esc"]} /> stops the
-        strings
+        Or drag across the strings, <Keys keys={["A"]} />…
+        <Keys keys={["K"]} /> and <Keys keys={["Space"]} />
       </>
     ),
   },

@@ -75,7 +75,7 @@ export const NoteStrip = () => {
   return (
     <div className="vl-strip" data-hud="strip" aria-label="Notes played">
       {list.length === 0 ? (
-        <span className="vl-strip-hint">Drag across the strings</span>
+        <span className="vl-strip-hint">Cross the strings to play</span>
       ) : null}
       {list.map((r, i) => {
         const s = STRINGS[r.string];

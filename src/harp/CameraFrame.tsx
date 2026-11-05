@@ -2,17 +2,46 @@
 // what the rest of the app gets from the session: mirrored on a webcam,
 // cover-fitted, never stretched) clipped to a rounded panel with a glass
 // edge and a soft shadow. Picture, edge and shadow are one quad drawn from
-// one rect (layout.ts), so they can never drift apart at any size. Tap it
-// to tuck it away (it shrinks into the
+// one rect (layout.ts), so they can never drift apart at any size. The 22
+// air strings are drawn over the picture as thin lines (C red, F blue, the
+// rest soft gold), where your fingertips play them, and a string lights up
+// when it sounds; a small dot marks each fingertip. Tap it to tuck it away (it shrinks into the
 // corner, leaving a small camera button); tap that to bring it back.
 // It is hidden while there is no camera picture.
 import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { ShaderMaterial, SRGBColorSpace, type Mesh } from "three";
+import {
+  Color,
+  ShaderMaterial,
+  SRGBColorSpace,
+  Vector2,
+  Vector3,
+  type Mesh,
+} from "three";
 import { useXRCameraTexture } from "@vincentt-xr/sdk/low-level";
 
+import { AIR, slotString, slotX } from "./air";
+import { air, hands, SIDES } from "./Hands";
 import { FRAME_RADIUS, frameRect } from "./layout";
-import { harp } from "./state";
+import { KIND_COLOR } from "./NoteStrip";
+import { harp, plucksSince } from "./state";
+import { STRINGS } from "./strings";
+
+const N = STRINGS.length;
+/** A string's light fades at this rate (1/s) after it sounds. */
+const LIGHT_FADE = 3.5;
+/** The gold of a sounding string and of the fingertip dots (as shown, sRGB). */
+const GOLD = new Vector3(1.0, 0.78, 0.25);
+const shown = (hex: string) => {
+  const c = new Color(hex).convertLinearToSRGB();
+  return new Vector3(c.r, c.g, c.b);
+};
+/** Each air string's colour, slot by slot, as the harp shows its strings (low on the left, or high). */
+const AIR_COLORS = [false, true].map((flip) =>
+  STRINGS.map((_, k) =>
+    shown(KIND_COLOR[STRINGS[slotString(k, N, flip)].kind]),
+  ),
+);
 
 /** Room around the panel for its shadow (CSS px). */
 const MARGIN = 28;
@@ -40,6 +69,13 @@ const frag = /* glsl */ `
   uniform float radius;
   uniform float screenAspect;
   uniform float opacity;
+  uniform float airX[${N}];   // each air string's x on the panel (0..1)
+  uniform vec3 airCol[${N}];
+  uniform float airLit[${N}]; // 0..1: lit as it sounds
+  uniform vec2 band;          // the playing band on the panel (top, bottom; 0..1 down)
+  uniform vec2 tips[2];       // each fingertip on the panel (0..1, y down)
+  uniform vec2 tipShown;
+  uniform vec3 gold;
   varying vec2 vPx;
 
   vec3 toSrgb(vec3 c) {
@@ -82,6 +118,31 @@ const frag = /* glsl */ `
     vec3 c = texture2D(cam, toCam(uv, pa)).rgb;
     if (camLinear > 0.5) c = toSrgb(c);
 
+    // The air strings, in the playing band.
+    float yTop = band.x * size.y;
+    float yBot = band.y * size.y;
+    float inBand = step(yTop, vPx.y) * step(vPx.y, yBot);
+    for (int i = 0; i < ${N}; i++) {
+      float x = airX[i] * size.x;
+      float lit = airLit[i];
+      float w = 0.6 + 0.9 * lit;
+      float line = 1.0 - smoothstep(w - 0.5, w + 0.7, abs(vPx.x - x));
+      float glow = (1.0 - smoothstep(0.0, 6.0, abs(vPx.x - x))) * lit;
+      vec3 col = mix(airCol[i], gold, lit);
+      c = mix(c, col, inBand * clamp(line * (0.4 + 0.6 * lit) + glow * 0.35, 0.0, 1.0));
+    }
+    // A dot on each fingertip.
+    for (int h = 0; h < 2; h++) {
+      float sh = h == 0 ? tipShown.x : tipShown.y;
+      if (sh < 0.02) continue;
+      vec2 pt = tips[h] * size;
+      float d = length(vPx - pt);
+      float dotA = 1.0 - smoothstep(2.6, 3.6, d);
+      float ring = (1.0 - smoothstep(0.5, 1.4, abs(d - 4.6))) * 0.8;
+      c = mix(c, vec3(1.0), ring * sh);
+      c = mix(c, gold, dotA * sh);
+    }
+
     // Glass edge: a 1px light line, and a soft highlight along the top.
     float edge = 1.0 - smoothstep(0.0, 1.0, abs(d + 0.5));
     c = mix(c, vec3(0.92, 0.965, 0.99), edge * 0.35);
@@ -113,6 +174,13 @@ export const CameraFrame = () => {
           screen: { value: [1, 1] },
           screenAspect: { value: 1 },
           opacity: { value: 1 },
+          airX: { value: STRINGS.map((_, k) => slotX(k, N)) },
+          airCol: { value: STRINGS.map(() => new Vector3()) },
+          airLit: { value: new Array(N).fill(0) },
+          band: { value: new Vector2(AIR.top, AIR.bottom) },
+          tips: { value: [new Vector2(), new Vector2()] },
+          tipShown: { value: new Vector2() },
+          gold: { value: GOLD },
         },
         vertexShader: vert,
         fragmentShader: frag,
@@ -124,7 +192,10 @@ export const CameraFrame = () => {
     [],
   );
 
-  useFrame(({ size }) => {
+  const lit = useRef({ seq: harp.seq, k: new Array<number>(N).fill(0) });
+
+  useFrame(({ size }, rawDt) => {
+    const dt = Math.min(rawDt, 0.1);
     const m = mesh.current;
     const tk = tuck.current;
     const now = performance.now() / 1000;
@@ -150,6 +221,32 @@ export const CameraFrame = () => {
     u.screenAspect.value = size.width / Math.max(1, size.height);
     u.cam.value = texture;
     u.camLinear.value = texture.colorSpace === SRGBColorSpace ? 1 : 0;
+    // The air strings in the screen's order, each lit as its string sounds.
+    const l = lit.current;
+    plucksSince(l.seq).some((e) => {
+      if (e.at > now) return true;
+      l.seq = e.seq;
+      const slot = air.flip ? N - 1 - e.string : e.string;
+      l.k[slot] = Math.max(l.k[slot], 0.5 + 0.5 * e.velocity);
+      return false;
+    });
+    const cols = u.airCol.value as Vector3[];
+    const lits = u.airLit.value as number[];
+    for (let j = 0; j < N; j += 1) {
+      cols[j].copy(AIR_COLORS[air.flip ? 1 : 0][j]);
+      l.k[j] *= Math.exp(-LIGHT_FADE * dt);
+      lits[j] = l.k[j];
+    }
+    // The fingertips.
+    const tips = u.tips.value as Vector2[];
+    const sh = u.tipShown.value as Vector2;
+    SIDES.forEach((side, n) => {
+      const seen = hands.tracked[side] ? air.seen.get(side) : undefined;
+      if (seen) tips[n].set(seen.x, seen.y);
+      const v = seen ? 1 : 0;
+      if (n === 0) sh.x += (v - sh.x) * (1 - Math.exp(-dt / 0.08));
+      else sh.y += (v - sh.y) * (1 - Math.exp(-dt / 0.08));
+    });
   });
 
   return (

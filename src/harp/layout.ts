@@ -154,10 +154,16 @@ export const STRIP_HEIGHT = 36;
 
 /** Where the corner camera sits (CSS px): top right. */
 export const frameRect = (width: number, height: number) => {
-  // Portrait-ish on a phone, landscape-ish on a laptop, never extreme.
-  const aspect = Math.min(1.33, Math.max(0.75, width / Math.max(1, height)));
-  const h = Math.min(220, Math.max(110, height * 0.24));
-  const w = Math.round(h * aspect);
+  // The screen's own shape (so it shows the whole picture, where the air
+  // strings are), short of extreme: portrait on a phone, wide on a laptop.
+  const aspect = Math.min(1.78, Math.max(0.56, width / Math.max(1, height)));
+  let h = Math.min(220, Math.max(110, height * 0.24));
+  let w = h * aspect;
+  if (w > 340) {
+    w = 340;
+    h = w / aspect;
+  }
+  w = Math.round(w);
   return {
     left: width - GUTTER - w,
     top: GUTTER,
@@ -194,3 +200,24 @@ export const pinToScreen = (
   _camera: unknown,
   size: { width: number; height: number },
 ) => [size.width / 2, size.height / 2];
+
+/**
+ * A point on the camera picture (shares, y down) as the corner camera shows
+ * it (shares of the panel, y down). The panel cover-fits the picture: on a
+ * wide screen it keeps a centre column, on a tall one a band a little above
+ * the middle (where raised hands are). `screen` and `panel` are aspects
+ * (width ÷ height). Outside the panel is below 0 or above 1.
+ */
+export const pictureToPanel = (
+  x: number,
+  y: number,
+  screen: number,
+  panel: number,
+) => {
+  if (panel > screen) {
+    const k = screen / panel;
+    const mid = Math.min(0.62, 1 - 0.5 * k);
+    return { x, y: 1 - (0.5 + (1 - y - mid) / k) };
+  }
+  return { x: 0.5 + ((x - 0.5) * screen) / panel, y };
+};
