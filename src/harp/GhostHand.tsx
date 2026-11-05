@@ -6,7 +6,7 @@
 // damp shows a fist. It never moves the harp: only the camera changes.
 import { useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Group, Vector3, type Object3D } from "three";
+import { Group, Quaternion, Vector3, type Object3D } from "three";
 
 import { dressGhost, ghostMaterial } from "./ghost";
 import { rig } from "./Harp";
@@ -14,7 +14,7 @@ import { HAND_REST, HAND_TURN } from "./layout";
 import { MODELS, useOptionalModel } from "./models";
 import { pointer } from "./PointerInput";
 import { harp, plucksSince } from "./state";
-import { STRINGS } from "./strings";
+import { spanAt, STRINGS } from "./strings";
 
 /** The hand's poses: pointing (plays), open (resting), a fist (damp). */
 const POSES = ["PluckHand_Point", "PluckHand_Open", "PluckHand_Fist"] as const;
@@ -35,6 +35,13 @@ const FOLLOW = {
   hover: 0.01,
   play: -0.006,
 };
+/**
+ * Near the soundboard the hand tips its wrist up towards you about the
+ * index tip (by up to `pitch` degrees), so its palm never sinks into the
+ * soundbox: fully when the tip is `near` (m) above the strings' bottoms,
+ * not at all from `far`.
+ */
+const BOARD = { pitch: 50, near: 0.05, far: 0.2 };
 /** After a damp the fist shows this long; after this long idle the hand opens (s). */
 const FIST_HOLD = 0.5;
 const OPEN_AFTER = 1.6;
@@ -62,17 +69,23 @@ export const GhostHand = () => {
     const tip = tipNode ? tipNode.position.clone() : INDEX_TIP.clone();
     dressGhost(root, ghostMaterial());
     holder.add(root);
-    holder.quaternion.copy(HAND_TURN);
     const poses = Object.fromEntries(
       POSES.map((n) => [n, root.getObjectByName(n) ?? null]),
     ) as Record<Pose, Object3D | null>;
-    // The tip's offset from the hand's root, turned as the hand is.
-    const offset = tip.applyQuaternion(HAND_TURN);
-    return { holder, poses, offset };
+    return { holder, poses, tip };
   }, [src]);
 
   const st = useRef({ seq: harp.seq, keyAt: -1e9, keyX: 0, keyY: 0 });
   const want = useMemo(() => new Vector3(), []);
+  const tmp = useMemo(
+    () => ({
+      q: new Quaternion(),
+      axis: new Vector3(1, 0, 0),
+      v: new Vector3(),
+      k: 0,
+    }),
+    [],
+  );
 
   useFrame((_, rawDt) => {
     if (!hand) return;
@@ -100,7 +113,17 @@ export const GhostHand = () => {
       rate = FOLLOW.keys;
     } else want.copy(HAND_REST);
     ghostTip.lerp(want, 1 - Math.exp(-rate * dt));
-    hand.holder.position.copy(ghostTip).sub(hand.offset);
+    // Tipped up near the soundboard (eased, so it never snaps).
+    const gap = ghostTip.y - spanAt(ghostTip.x).bottom;
+    const k = Math.min(
+      1,
+      Math.max(0, (BOARD.far - gap) / (BOARD.far - BOARD.near)),
+    );
+    tmp.k += (k - tmp.k) * (1 - Math.exp(-12 * dt));
+    tmp.q.setFromAxisAngle(tmp.axis, (-BOARD.pitch * Math.PI * tmp.k) / 180);
+    hand.holder.quaternion.copy(tmp.q).multiply(HAND_TURN);
+    tmp.v.copy(hand.tip).applyQuaternion(hand.holder.quaternion);
+    hand.holder.position.copy(ghostTip).sub(tmp.v);
 
     let pose: Pose = "PluckHand_Point";
     const lastPlay = Math.max(harp.playedAt, pointer.at);
