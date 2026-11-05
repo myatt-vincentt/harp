@@ -1,12 +1,14 @@
 // The page UI, minimal, on Night glass:
 //   - your camera, top right (CameraFrame.tsx): tap it to tuck it away; a
 //     small camera button then sits in the corner to bring it back
-//   - one floating dock, bottom centre, icons only: which fingers play (1,
+//   - one floating dock, bottom centre, icons only: songs (opens the songs
+//     card; while a song runs it stops it), which fingers play (1,
 //     2 or all), the view (front, player, close), day / night, and how to
 //     play. A small label shows over
 //     a button on hover, or for a moment after a tap.
 //   - the note strip just above the dock (NoteStrip.tsx)
 //   - the how-to-play steps (after Start, or from the dock)
+//   - the songs card, the note card and the finish card (SongUI.tsx)
 import {
   useEffect,
   useRef,
@@ -30,6 +32,8 @@ import {
   type View,
 } from "./layout";
 import { NoteStrip, STRIP_CSS } from "./NoteStrip";
+import { stopSong } from "./SongPlayer";
+import { NoteIcon, SONG_CSS, SongUI, StopIcon } from "./SongUI";
 import {
   closeHowTo,
   harp,
@@ -360,6 +364,26 @@ export const Hud = () => {
   const noCamera = harp.entered && !camera;
 
   const buttons: DockButton[] = [
+    harp.session
+      ? {
+          id: "songs",
+          label: "Stop song",
+          icon: <StopIcon />,
+          on: true,
+          act: stopSong,
+        }
+      : {
+          id: "songs",
+          label: "Songs",
+          icon: <NoteIcon />,
+          on: harp.songCard,
+          act: () => {
+            harp.songCard = !harp.songCard;
+            harp.finish = null;
+            closeHowTo();
+            harp.changed();
+          },
+        },
     {
       id: "fingers",
       label: FINGERS_LABEL[harp.fingers],
@@ -385,7 +409,14 @@ export const Hud = () => {
       label: "How to play",
       icon: <HelpIcon />,
       on: harp.howTo,
-      act: () => (harp.howTo ? closeHowTo() : openHowTo()),
+      act: () => {
+        if (harp.howTo) {
+          closeHowTo();
+          return;
+        }
+        harp.songCard = false;
+        openHowTo();
+      },
     },
   ];
 
@@ -398,6 +429,7 @@ export const Hud = () => {
     >
       <style>{CSS}</style>
       <style>{STRIP_CSS}</style>
+      <style>{SONG_CSS}</style>
       <div className="vl-root">
         {noCamera ? (
           <div
@@ -481,6 +513,7 @@ export const Hud = () => {
         ) : null}
 
         {harp.entered ? <NoteStrip /> : null}
+        {harp.entered ? <SongUI width={width} height={height} /> : null}
 
         <div
           className={`vl-dock vl-glass ${harp.dockPulseAt !== null ? "pulse" : ""}`}

@@ -5,6 +5,7 @@
 //   - vibrates: still at both ends, widest in the middle, longer strings
 //     swinging wider and slower; a damp stops them all at once
 //   - a small spark shows where the fingertip crossed it
+// In a song, the strings to play next pulse gold.
 import { useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import {
@@ -63,6 +64,8 @@ const SHAKE = {
   hzHigh: 38,
   damp: 0.05,
 };
+/** A song's next strings: how strongly they glow, low … high, and how fast they pulse (Hz). */
+const TARGET = { low: 0.18, high: 0.5, hz: 1.4 };
 /** The spark: its colour, size (m, from … to) and life (s). */
 const SPARK = {
   color: new Color(1.0, 0.7, 0.25),
@@ -283,7 +286,10 @@ export const Harp = () => {
           st.dampedAt = harp.dampedAt;
       });
 
-    parts.strings.forEach((st) => {
+    // A song's next strings pulse gold.
+    const pulse = 0.5 + 0.5 * Math.sin(2 * Math.PI * TARGET.hz * now);
+    const target = harp.target ?? [];
+    parts.strings.forEach((st, i) => {
       if (!st) return;
       const t = now - st.at;
       let ring = 0;
@@ -298,7 +304,10 @@ export const Harp = () => {
         }
       }
       // Its glow: its own colour at rest, gold while it rings.
-      const g = Math.min(1, glow);
+      const aim = target.includes(i)
+        ? TARGET.low + (TARGET.high - TARGET.low) * pulse
+        : 0;
+      const g = Math.min(1, Math.max(glow, aim));
       st.m.emissive.copy(st.rest).lerp(PLAYED.emissive, g);
       st.halos.forEach((h) => {
         h.mesh.visible = g > 0.01;

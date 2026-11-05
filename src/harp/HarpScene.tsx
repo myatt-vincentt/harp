@@ -16,6 +16,8 @@
 //   audio.ts          the sound engine: the recorded harp (sampler.ts) or the
 //                     voice made in code (synth.ts)
 //   strings.ts        the strings, and how a crossing plucks them
+//   SongPlayer.tsx    songs to learn and play (songs.ts, session.ts, backing.ts),
+//                     their cards (SongUI.tsx)
 //   Home.tsx          the home page (Start), shown over the scene while it loads
 import { Suspense, useEffect } from "react";
 import { HandTracker } from "@vincentt-xr/sdk/tracking";
@@ -27,6 +29,7 @@ import { Hands } from "./Hands";
 import { Harp } from "./Harp";
 import { Hud } from "./Hud";
 import { PointerInput } from "./PointerInput";
+import { SongPlayer } from "./SongPlayer";
 import { harp, useHarpVersion } from "./state";
 import { Studio } from "./Studio";
 
@@ -57,6 +60,7 @@ export const HarpScene = () => {
       <Hands />
       <CameraFrame />
       <PointerInput />
+      <SongPlayer />
       <Hud />
     </>
   );

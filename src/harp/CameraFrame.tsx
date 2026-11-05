@@ -5,7 +5,8 @@
 // one rect (layout.ts), so they can never drift apart at any size. The 22
 // air strings are drawn over the picture as thin lines (C red, F blue, the
 // rest soft gold), where your fingertips play them, and a string lights up
-// when it sounds; a small dot marks each fingertip that plays. Tap it to
+// when it sounds (in a song, the next strings glow, pulsing); a small dot
+// marks each fingertip that plays. Tap it to
 // tuck it away (it shrinks into the
 // corner, leaving a small camera button); tap that to bring it back.
 // It is hidden while there is no camera picture.
@@ -235,10 +236,15 @@ export const CameraFrame = () => {
     });
     const cols = u.airCol.value as Vector3[];
     const lits = u.airLit.value as number[];
+    // A song's next strings glow brighter, pulsing.
+    const pulse = 0.5 + 0.5 * Math.sin(2 * Math.PI * 1.4 * now);
+    const aims = new Set(
+      (harp.target ?? []).map((i) => (air.flip ? N - 1 - i : i)),
+    );
     for (let j = 0; j < N; j += 1) {
       cols[j].copy(AIR_COLORS[air.flip ? 1 : 0][j]);
       l.k[j] *= Math.exp(-LIGHT_FADE * dt);
-      lits[j] = l.k[j];
+      lits[j] = Math.max(l.k[j], aims.has(j) ? 0.45 + 0.4 * pulse : 0);
     }
     // The fingertips.
     const tips = u.tips.value as Vector2[];

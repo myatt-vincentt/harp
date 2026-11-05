@@ -5,6 +5,7 @@ import { useSyncExternalStore } from "react";
 
 import { FINGERS, type Fingers } from "./air";
 import { sound } from "./audio";
+import type { Mode, Session } from "./session";
 import { VIEWS, type View } from "./layout";
 import { glissando, pluckHeight, STRINGS, OCTAVE, stringOf } from "./strings";
 
@@ -71,11 +72,33 @@ export const harp = {
   howToUntil: null as number | null,
   /** After the first card: the dock's one pulse (performance.now() ms). */
   dockPulseAt: null as number | null,
+  /** The songs card is open. */
+  songCard: false,
+  /** Play runs slower (0.75×). */
+  slow: false,
+  /** The song being learnt or played. */
+  session: null as Session | null,
+  /** The strings to play next (they pulse gold), or null. */
+  target: null as number[] | null,
+  /** A song just finished: its stars (performance.now() ms). */
+  finish: null as {
+    id: string;
+    mode: Mode;
+    stars: number;
+    at: number;
+  } | null,
+  /** The note card's effects: a right step (and whether perfect), a hint. */
+  fx: { goodSeq: 0, perfect: false, hintSeq: 0 },
   changed() {
     version += 1;
     listeners.forEach((l) => l());
   },
 };
+
+/** A song listens to every string plucked (SongPlayer.tsx). */
+export const pluckHook: {
+  fn: ((string: number, at: number) => void) | null;
+} = { fn: null };
 
 /** The note strip shows this many notes. */
 export const RECENT = 7;
@@ -184,6 +207,7 @@ export const pluck = (
   harp.recent.push({ seq: harp.seq, string });
   if (harp.recent.length > RECENT) harp.recent.shift();
   harp.playedAt = Math.max(harp.playedAt, at);
+  pluckHook.fn?.(string, at);
   record(`pluck ${s.note} ${v.toFixed(2)}`, by);
   harp.changed();
   if (harp.howTo && by === "hands") closeHowTo();
