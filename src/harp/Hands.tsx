@@ -1,5 +1,6 @@
 // Your hands, read from the hand tracker every frame. Both hands play, like
-// at a real harp: each index fingertip is a plucker on the air strings
+// at a real harp: each fingertip the Fingers setting chooses (the index,
+// index and middle, or all five) is a plucker on the air strings
 // (air.ts), spread across your camera picture as the corner camera shows it
 // (so you always see every string there), in the order the harp's strings
 // show on screen. Crossing a string plays it; a sweep plays a
@@ -16,7 +17,7 @@ import {
   type XRModelNodeHandTracking,
 } from "@vincentt-xr/sdk/low-level";
 
-import { AirStrings } from "./air";
+import { AirStrings, FINGER_TIPS, tipId } from "./air";
 import { fingersUp, type Joint } from "./fingers";
 import { rig } from "./Harp";
 import { frameRect, pictureToPanel } from "./layout";
@@ -43,8 +44,15 @@ export const hands = {
   lastString: -1,
 };
 
+/** The index tip on the air strings (the ghost hand, the debug readout). */
+export const indexSeen = (side: Side) => air.seen.get(tipId(side, 8));
+
+/** Every tip on the air strings now, for the corner camera's dots. */
+export const ALL_TIPS = SIDES.flatMap((side) =>
+  FINGER_TIPS.all.map((j) => ({ side, joint: j, id: tipId(side, j) })),
+);
+
 type Pt = { x: number; y: number };
-const INDEX_TIP = 8;
 /** A tip moving faster than this (slots / s) is moving. */
 const MOVING = 1.5;
 
@@ -76,6 +84,7 @@ export const Hands = () => {
   const node = useXRModelNode<XRModelNodeHandTracking>(XRModel.HAND_TRACKER);
   const st = useRef({
     stamp: { left: -1, right: -1 } as Record<Side, number>,
+    fingers: harp.fingers,
     up: { left: null, right: null } as Record<Side, boolean[] | null>,
     slot: { left: 0, right: 0 } as Record<Side, number>,
   });
@@ -87,10 +96,19 @@ export const Hands = () => {
     const frame = frameRect(size.width, size.height);
     const panel = frame.width / Math.max(1, frame.height);
     const now = performance.now() / 1000;
+    // A new Fingers setting: the tips that stop playing forget where they were.
+    if (s.fingers !== harp.fingers) {
+      s.fingers = harp.fingers;
+      ALL_TIPS.forEach((tp) => {
+        if (!FINGER_TIPS[harp.fingers].includes(tp.joint)) air.lost(tp.id);
+      });
+    }
+    const joints = FINGER_TIPS[harp.fingers];
     SIDES.forEach((side) => {
       const pose = harp.started ? (node?.poses?.[side] ?? null) : null;
       if (!pose || pose.held) {
-        if (hands.tracked[side]) air.lost(side);
+        if (hands.tracked[side])
+          FINGER_TIPS.all.forEach((j) => air.lost(tipId(side, j)));
         hands.tracked[side] = false;
         hands.fist[side] = false;
         s.up[side] = null;
@@ -108,7 +126,6 @@ export const Hands = () => {
           aspect,
           panel,
         );
-      const tip = at(INDEX_TIP);
       const k5 = at(5);
       const k17 = at(17);
       // The palm's width in panel widths (y is in heights: ÷ the aspect).
@@ -117,25 +134,34 @@ export const Hands = () => {
       const fist = s.up[side]!.every((u) => !u);
       hands.fist[side] = fist;
       const t = pose.timestampMs / 1000;
-      air.push(side, { t, x: tip.x, y: tip.y, palm, fist }).forEach((e) => {
-        if (e.kind === "damp") {
-          damp("hands");
-          hands.damps += 1;
-          return;
-        }
-        pluck(
-          e.string,
-          e.velocity,
-          "hands",
-          heightOn(e.string, e.height),
-          e.delay,
-        );
-        hands.plucks += 1;
-        hands.lastString = e.string;
-        hands.lastTip = side;
-        hands.playedAt = now;
+      // Each playing tip, the same rules; one stop per hand per reading.
+      let damped = false;
+      joints.forEach((j) => {
+        const tip = at(j);
+        air
+          .push(tipId(side, j), { t, x: tip.x, y: tip.y, palm, fist }, side)
+          .forEach((e) => {
+            if (e.kind === "damp") {
+              if (damped) return;
+              damped = true;
+              damp("hands");
+              hands.damps += 1;
+              return;
+            }
+            pluck(
+              e.string,
+              e.velocity,
+              "hands",
+              heightOn(e.string, e.height),
+              e.delay,
+            );
+            hands.plucks += 1;
+            hands.lastString = e.string;
+            hands.lastTip = side;
+            hands.playedAt = now;
+          });
       });
-      const seen = air.seen.get(side);
+      const seen = indexSeen(side);
       if (seen) {
         if (Math.abs(seen.slot - s.slot[side]) > MOVING * 0.033 && seen.inBand)
           hands.movedAt[side] = now;

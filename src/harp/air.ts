@@ -15,7 +15,11 @@
 //     and not with a fist; any other hand shape plays with its index tip
 //   - louder the faster the tip moves across (in palm widths a second)
 //   - a fist held a moment, on either hand, stops every string
-//   - both tips crossing one string at the same moment play it once
+//   - one or more tips per hand play (the Fingers setting: the index, index
+//     and middle, or all five); tips crossing one string at the same moment
+//     play it once, one hand plays a string at most once in a short while,
+//     and a hand's fingers following each other across a string in the same
+//     direction play it once (a flat hand sweeping does not smear)
 //   - a lost hand does nothing (the strings ring on)
 //
 // Positions are shares of the picture: x 0 (left) … 1 (right), y 0 (top) …
@@ -32,6 +36,14 @@ export const AIR = {
   rearm: 0.35,
   /** Both tips on one string within this long (s) play it once. */
   merge: 0.06,
+  /** One hand plays a string at most once in this long (s). */
+  handGap: 0.08,
+  /**
+   * …and its other fingers, following in the same direction (one flat hand
+   * sweeping), do not play it again within this long (s). Sweeping back
+   * plays it again.
+   */
+  follow: 0.45,
   /** A fist must hold this long (s) to stop the strings. */
   fistHold: 0.12,
   /** A sweep's strings sound spread over at most this long (s). */
@@ -72,6 +84,18 @@ export const slotString = (k: number, count: number, flip: boolean) =>
 /** Where on the air strings x is (a continuous slot, 0 … count-1). */
 export const slotAt = (x: number, count: number) =>
   (x - AIR.left) / spacing(count) - 0.5;
+
+/** The Fingers setting: which fingertips play. */
+export type Fingers = "1" | "2" | "all";
+export const FINGERS: Fingers[] = ["1", "2", "all"];
+/** The tracker's fingertip joints each setting plays with (thumb 4 … pinky 20). */
+export const FINGER_TIPS: Record<Fingers, number[]> = {
+  "1": [8],
+  "2": [8, 12],
+  all: [4, 8, 12, 16, 20],
+};
+/** A tip's name for the air strings: the hand and the joint ("left:8"). */
+export const tipId = (hand: string, joint: number) => `${hand}:${joint}`;
 
 /** One hand's reading. */
 export type TipReading = {
@@ -119,6 +143,12 @@ export class AirStrings {
   /** When each slot last sounded (s), for the merge. */
   private last: number[];
 
+  /** When each hand last played each slot (s). */
+  private readonly byHand = new Map<
+    string,
+    Array<{ at: number; dir: number; tip: string }>
+  >();
+
   private readonly tips = new Map<string, Tip>();
 
   /** Each tip now: where it is (smoothed), and the slot it is at (for the ghost hand and the corner camera). */
@@ -150,7 +180,7 @@ export class AirStrings {
   }
 
   /** A reading of one tip; returns what it plays. */
-  push(id: string, r: TipReading): AirEvent[] {
+  push(id: string, r: TipReading, hand = id): AirEvent[] {
     const s = this.tip(id);
     const out: AirEvent[] = [];
     const x = s.fx.push(r.t, r.x);
@@ -217,6 +247,20 @@ export class AirStrings {
       s.spent.add(k);
       const at = r.t - dt + f * dt;
       if (at - this.last[k] < AIR.merge) return;
+      let mine = this.byHand.get(hand);
+      if (!mine) {
+        mine = Array.from({ length: this.count }, () => ({
+          at: -1e9,
+          dir: 0,
+          tip: "",
+        }));
+        this.byHand.set(hand, mine);
+      }
+      const was = mine[k];
+      const dir = Math.sign(x - prev);
+      if (at - was.at < AIR.handGap) return;
+      if (was.tip !== id && was.dir === dir && at - was.at < AIR.follow) return;
+      mine[k] = { at, dir, tip: id };
       this.last[k] = at;
       out.push({
         kind: "pluck",

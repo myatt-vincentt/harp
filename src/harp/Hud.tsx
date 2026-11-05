@@ -1,8 +1,9 @@
 // The page UI, minimal, on Night glass:
 //   - your camera, top right (CameraFrame.tsx): tap it to tuck it away; a
 //     small camera button then sits in the corner to bring it back
-//   - one floating dock, bottom centre, icons only: the view (front,
-//     player, close), day / night, and how to play. A small label shows over
+//   - one floating dock, bottom centre, icons only: which fingers play (1,
+//     2 or all), the view (front, player, close), day / night, and how to
+//     play. A small label shows over
 //     a button on hover, or for a moment after a tap.
 //   - the note strip just above the dock (NoteStrip.tsx)
 //   - the how-to-play steps (after Start, or from the dock)
@@ -17,6 +18,7 @@ import { Html } from "@react-three/drei";
 import { useThree } from "@react-three/fiber";
 import { useXRReady } from "@vincentt-xr/sdk/low-level";
 
+import type { Fingers } from "./air";
 import { GOLD } from "./ghost";
 import {
   DOCK_BOTTOM,
@@ -32,6 +34,7 @@ import {
   closeHowTo,
   harp,
   INTRO_CARD_MS,
+  nextFingers,
   nextView,
   openHowTo,
   setNight,
@@ -239,12 +242,24 @@ const Keys = ({ keys }: { keys: string[] }) => (
   </span>
 );
 
-type Step = { key: string; pic: ReactNode; text: ReactNode; tint?: string };
+type Step = {
+  key: string;
+  pic: ReactNode;
+  text: ReactNode;
+  tint?: string;
+  /** The words for each Fingers setting (when they differ). */
+  fingers?: Record<Fingers, string>;
+};
 const STEPS: Step[] = [
   {
     key: "point",
     pic: <PicPoint />,
     text: "Pass your index finger across the strings in the camera",
+    fingers: {
+      "1": "Pass your index finger across the strings in the camera",
+      "2": "Pass your index and middle fingers across the strings in the camera",
+      all: "Pass your fingertips across the strings in the camera",
+    },
     tint: GOLD.base,
   },
   {
@@ -283,6 +298,18 @@ const NO_CAMERA = "No camera: drag across the strings, or press A to K";
 // ---------------------------------------------------------------- the dock
 
 const VIEW_MARK: Record<View, string> = { front: "1", player: "2", close: "3" };
+const FINGERS_MARK: Record<Fingers, string> = { "1": "1", "2": "2", all: "5" };
+const FINGERS_LABEL: Record<Fingers, string> = {
+  "1": "Fingers: index",
+  "2": "Fingers: index and middle",
+  all: "Fingers: all five",
+};
+/** A raised hand: which fingers play. */
+const FingersIcon = () => (
+  <Icon>
+    <path d="M8 13V6.5a1.2 1.2 0 0 1 2.4 0V12V4.8a1.2 1.2 0 0 1 2.4 0V12V5.8a1.2 1.2 0 0 1 2.4 0V12.5V8.3a1.2 1.2 0 0 1 2.4 0V15a6 6 0 0 1-6 6h-.6a5 5 0 0 1-4.2-2.3L5 15.4a1.1 1.1 0 0 1 1.8-1.2L8 15.5" />
+  </Icon>
+);
 const VIEW_LABEL: Record<View, string> = {
   front: "View: Front",
   player: "View: Player",
@@ -333,6 +360,13 @@ export const Hud = () => {
   const noCamera = harp.entered && !camera;
 
   const buttons: DockButton[] = [
+    {
+      id: "fingers",
+      label: FINGERS_LABEL[harp.fingers],
+      icon: <FingersIcon />,
+      mark: FINGERS_MARK[harp.fingers],
+      act: nextFingers,
+    },
     {
       id: "view",
       label: VIEW_LABEL[harp.view],
@@ -437,7 +471,8 @@ export const Hud = () => {
                     {st.pic}
                   </span>
                   <span>
-                    <span className="vl-num">{i + 1}</span> {st.text}
+                    <span className="vl-num">{i + 1}</span>{" "}
+                    {st.fingers ? st.fingers[harp.fingers] : st.text}
                   </span>
                 </div>
               ))}

@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   AIR,
+  FINGER_TIPS,
+  FINGERS,
+  tipId,
   AIR_SPEED,
   AirStrings,
   airVelocity,
@@ -202,5 +205,61 @@ describe("the speed across the air strings", () => {
     );
     expect(slow.length).toBe(1);
     expect(fast[0].velocity).toBeGreaterThan(slow[0].velocity);
+  });
+});
+
+describe("the Fingers setting", () => {
+  it("plays the index (1), index and middle (2), or all five tips", () => {
+    expect(FINGERS).toEqual(["1", "2", "all"]);
+    expect(FINGER_TIPS["1"]).toEqual([8]);
+    expect(FINGER_TIPS["2"]).toEqual([8, 12]);
+    expect(FINGER_TIPS.all).toEqual([4, 8, 12, 16, 20]);
+    expect(tipId("left", 12)).toBe("left:12");
+  });
+
+  /** A flat hand: its tips side by side (`gap` apart), sweeping at `speed` (widths / s). */
+  const sweepHand = (joints: number[], gap: number, speed: number) => {
+    const a = new AirStrings(N);
+    const from = between(3);
+    const out: AirEvent[] = [];
+    const frames = Math.round((0.3 / speed) * 30);
+    for (let f = 0; f <= frames + 20; f += 1) {
+      const t = f / 30;
+      // Held still for the first 20 readings, then sweeping.
+      const x = from + Math.max(0, f - 20) * (speed / 30);
+      joints.forEach((j, n) => {
+        out.push(
+          ...a.push(
+            tipId("right", j),
+            { t, x: x + n * gap, y: 0.5, palm: PALM, fist: false },
+            "right",
+          ),
+        );
+      });
+    }
+    return plucks(out);
+  };
+
+  it("plays each string once when a flat hand sweeps all five tips across", () => {
+    [0.3, 0.6, 1.2].forEach((speed) => {
+      const es = sweepHand(FINGER_TIPS.all, 0.012, speed);
+      const strings = es.map((e) => e.string);
+      expect(new Set(strings).size).toBe(strings.length);
+      expect(strings.length).toBeGreaterThan(5);
+    });
+  });
+
+  it("merges two fingers of one hand crossing a string together", () => {
+    const es = sweepHand(FINGER_TIPS["2"], 0.01, 0.6);
+    const strings = es.map((e) => e.string);
+    expect(new Set(strings).size).toBe(strings.length);
+  });
+
+  it("still lets two fingers play one string twice when well apart in time", () => {
+    // Fingers a whole palm apart, sweeping slowly (over half a second
+    // between them): the string sounds again.
+    const es = sweepHand(FINGER_TIPS["2"], 0.08, 0.12);
+    const strings = es.map((e) => e.string);
+    expect(new Set(strings).size).toBeLessThan(strings.length);
   });
 });

@@ -5,7 +5,8 @@
 // one rect (layout.ts), so they can never drift apart at any size. The 22
 // air strings are drawn over the picture as thin lines (C red, F blue, the
 // rest soft gold), where your fingertips play them, and a string lights up
-// when it sounds; a small dot marks each fingertip. Tap it to tuck it away (it shrinks into the
+// when it sounds; a small dot marks each fingertip that plays. Tap it to
+// tuck it away (it shrinks into the
 // corner, leaving a small camera button); tap that to bring it back.
 // It is hidden while there is no camera picture.
 import { useMemo, useRef } from "react";
@@ -20,14 +21,16 @@ import {
 } from "three";
 import { useXRCameraTexture } from "@vincentt-xr/sdk/low-level";
 
-import { AIR, slotString, slotX } from "./air";
-import { air, hands, SIDES } from "./Hands";
+import { AIR, FINGER_TIPS, slotString, slotX } from "./air";
+import { air, ALL_TIPS, hands } from "./Hands";
 import { FRAME_RADIUS, frameRect } from "./layout";
 import { KIND_COLOR } from "./NoteStrip";
 import { harp, plucksSince } from "./state";
 import { STRINGS } from "./strings";
 
 const N = STRINGS.length;
+/** Every fingertip of both hands (a dot shows on the ones that play). */
+const TIPS = 10;
 /** A string's light fades at this rate (1/s) after it sounds. */
 const LIGHT_FADE = 3.5;
 /** The gold of a sounding string and of the fingertip dots (as shown, sRGB). */
@@ -73,8 +76,8 @@ const frag = /* glsl */ `
   uniform vec3 airCol[${N}];
   uniform float airLit[${N}]; // 0..1: lit as it sounds
   uniform vec2 band;          // the playing band on the panel (top, bottom; 0..1 down)
-  uniform vec2 tips[2];       // each fingertip on the panel (0..1, y down)
-  uniform vec2 tipShown;
+  uniform vec2 tips[${TIPS}];       // each fingertip on the panel (0..1, y down)
+  uniform float tipShown[${TIPS}];
   uniform vec3 gold;
   varying vec2 vPx;
 
@@ -132,8 +135,8 @@ const frag = /* glsl */ `
       c = mix(c, col, inBand * clamp(line * (0.4 + 0.6 * lit) + glow * 0.35, 0.0, 1.0));
     }
     // A dot on each fingertip.
-    for (int h = 0; h < 2; h++) {
-      float sh = h == 0 ? tipShown.x : tipShown.y;
+    for (int h = 0; h < ${TIPS}; h++) {
+      float sh = tipShown[h];
       if (sh < 0.02) continue;
       vec2 pt = tips[h] * size;
       float d = length(vPx - pt);
@@ -178,8 +181,8 @@ export const CameraFrame = () => {
           airCol: { value: STRINGS.map(() => new Vector3()) },
           airLit: { value: new Array(N).fill(0) },
           band: { value: new Vector2(AIR.top, AIR.bottom) },
-          tips: { value: [new Vector2(), new Vector2()] },
-          tipShown: { value: new Vector2() },
+          tips: { value: ALL_TIPS.map(() => new Vector2()) },
+          tipShown: { value: new Array(TIPS).fill(0) },
           gold: { value: GOLD },
         },
         vertexShader: vert,
@@ -239,13 +242,16 @@ export const CameraFrame = () => {
     }
     // The fingertips.
     const tips = u.tips.value as Vector2[];
-    const sh = u.tipShown.value as Vector2;
-    SIDES.forEach((side, n) => {
-      const seen = hands.tracked[side] ? air.seen.get(side) : undefined;
+    const sh = u.tipShown.value as number[];
+    const playing = FINGER_TIPS[harp.fingers];
+    ALL_TIPS.forEach((tp, n) => {
+      const seen =
+        hands.tracked[tp.side] && playing.includes(tp.joint)
+          ? air.seen.get(tp.id)
+          : undefined;
       if (seen) tips[n].set(seen.x, seen.y);
       const v = seen ? 1 : 0;
-      if (n === 0) sh.x += (v - sh.x) * (1 - Math.exp(-dt / 0.08));
-      else sh.y += (v - sh.y) * (1 - Math.exp(-dt / 0.08));
+      sh[n] += (v - sh[n]) * (1 - Math.exp(-dt / 0.08));
     });
   });
 

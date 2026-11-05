@@ -4,7 +4,7 @@
 //   __harp.pluck("C4", 0.8)        pluck a string (by note or index), 0 soft … 1 hard
 //   __harp.sweep()                 a C-major glissando (sweep(true): every string)
 //   __harp.damp()                  stop the strings
-//   __harp.view("player"), __harp.night(true)
+//   __harp.view("player"), __harp.night(true), __harp.fingers("all")
 //   __harp.look([x, y, z], [tx, ty, tz], fov)   a fixed camera (null: back)
 //   __harp.useRecordings(false)    the voice made in code
 //
@@ -18,11 +18,20 @@ import { Vector3 } from "three";
 import { meter, samples, sound } from "./audio";
 import { cameraOverride } from "./CameraRig";
 import { ghostTip } from "./GhostHand";
-import { air, hands, SIDES } from "./Hands";
+import { air, hands, indexSeen, SIDES } from "./Hands";
 import { rig } from "./Harp";
 import type { View } from "./layout";
 import { pointer } from "./PointerInput";
-import { damp, harp, pluck, setNight, setView, sweep } from "./state";
+import {
+  damp,
+  harp,
+  pluck,
+  setFingers,
+  setNight,
+  setView,
+  sweep,
+} from "./state";
+import type { Fingers } from "./air";
 import { stringOf, STRINGS } from "./strings";
 
 /** The ?debug readout: a plain text box, refreshed a few times a second. */
@@ -48,7 +57,7 @@ const useReadout = () => {
     const yes = (b: boolean) => (b ? "yes" : "no");
     const t = window.setInterval(() => {
       const lines = SIDES.map((side) => {
-        const seen = air.seen.get(side);
+        const seen = indexSeen(side);
         if (!hands.tracked[side] || !seen) return `${side} hand no`;
         const slot = Math.round(seen.slot);
         const k = air.flip ? STRINGS.length - 1 - slot : slot;
@@ -58,7 +67,7 @@ const useReadout = () => {
       const last = STRINGS[hands.lastString]?.note ?? "-";
       box.textContent = [
         ...lines,
-        `plucks ${hands.plucks}  damps ${hands.damps}  last ${last} (${hands.lastTip ?? "-"})  order ${air.flip ? "high left" : "low left"}`,
+        `fingers ${harp.fingers}  plucks ${hands.plucks}  damps ${hands.damps}  last ${last} (${hands.lastTip ?? "-"})  order ${air.flip ? "high left" : "low left"}`,
         `sound ${sound.unlocked ? "started" : "not started"} ${sound.voiceKind}  peak ${meter.peak.toFixed(2)}`,
       ].join("\n");
     }, 200);
@@ -99,6 +108,7 @@ const DevDebug = () => {
       damp: () => damp("keys"),
       useRecordings: (on: boolean) => sound.useRecordings(on),
       view: (v: View) => setView(v),
+      fingers: (f: Fingers) => setFingers(f),
       night: (on: boolean) => setNight(on),
       look(pos: number[] | null, target: number[] = [0, 0.8, -0.3], fov = 40) {
         cameraOverride.pose = pos

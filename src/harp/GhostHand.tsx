@@ -4,7 +4,8 @@
 // or the pointer over the strings, and points while you play; played by the
 // keys, it moves to each string as it sounds (a glissando sweeps it along
 // the strings). Left alone it rests between E4 and F4 and slowly opens; a
-// fist (yours, or a damp) shows a fist. It never moves the harp: only the camera changes.
+// fist (yours, or a damp) shows a fist. Played by your hands it points
+// with the index when one finger plays, and plays open with two or all. It never moves the harp: only the camera changes.
 import { useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Group, Quaternion, Vector3, type Object3D } from "three";
@@ -14,7 +15,7 @@ import { rig } from "./Harp";
 import { HAND_REST, HAND_TURN } from "./layout";
 import { MODELS, useOptionalModel } from "./models";
 import { AIR } from "./air";
-import { air, hands, heightOn, SIDES } from "./Hands";
+import { air, hands, heightOn, indexSeen, SIDES } from "./Hands";
 import { pointer } from "./PointerInput";
 import { harp, plucksSince } from "./state";
 import { SPACING, spanAt, STRINGS } from "./strings";
@@ -117,7 +118,7 @@ export const GhostHand = () => {
       )
         side = sd;
     });
-    const seen = side ? air.seen.get(side) : undefined;
+    const seen = side ? indexSeen(side) : undefined;
     const handAt = side ? Math.max(hands.movedAt[side], hands.playedAt) : -1e9;
     let rate = FOLLOW.back;
     const usePointer = pointer.over && now - pointer.at < FOLLOW.hold;
@@ -155,7 +156,12 @@ export const GhostHand = () => {
     tmp.v.copy(hand.tip).applyQuaternion(hand.holder.quaternion);
     hand.holder.position.copy(ghostTip).sub(tmp.v);
 
-    let pose: Pose = "PluckHand_Point";
+    // It points with the index (Fingers 1); with two or all fingers playing
+    // it plays open (there is no two-finger pose).
+    let pose: Pose =
+      harp.fingers === "1" || now - handAt > FOLLOW.hold || handAt < pointer.at
+        ? "PluckHand_Point"
+        : "PluckHand_Open";
     const lastPlay = Math.max(harp.playedAt, pointer.at, handAt);
     const fist = SIDES.some((sd) => hands.tracked[sd] && hands.fist[sd]);
     if (now - harp.dampedAt < FIST_HOLD || fist) pose = "PluckHand_Fist";

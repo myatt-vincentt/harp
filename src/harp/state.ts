@@ -3,6 +3,7 @@
 // state); the few the page UI shows bump a version it subscribes to.
 import { useSyncExternalStore } from "react";
 
+import { FINGERS, type Fingers } from "./air";
 import { sound } from "./audio";
 import { VIEWS, type View } from "./layout";
 import { glissando, pluckHeight, STRINGS, OCTAVE, stringOf } from "./strings";
@@ -20,6 +21,18 @@ export type PluckEvent = {
   by: PlaySource;
   /** performance.now() / 1000 when it sounds. */
   at: number;
+};
+
+/** Where the Fingers choice is remembered (this viewer's browser only). */
+const FINGERS_KEY = "harp.fingers";
+const savedFingers = (): Fingers => {
+  try {
+    const v = window.localStorage.getItem(FINGERS_KEY);
+    if (v && (FINGERS as string[]).includes(v)) return v as Fingers;
+  } catch {
+    // no storage (a private window, blocked site data)
+  }
+  return "2";
 };
 
 const listeners = new Set<() => void>();
@@ -41,6 +54,8 @@ export const harp = {
 
   // What the page UI shows.
   view: "front" as View,
+  /** Which fingertips play: the index, index and middle, or all five. */
+  fingers: (typeof window === "undefined" ? "2" : savedFingers()) as Fingers,
   night: false,
   /** The corner camera is tucked away. */
   camHidden: false,
@@ -74,6 +89,18 @@ export const setView = (v: View) => {
   harp.view = v;
   harp.changed();
 };
+
+export const setFingers = (f: Fingers) => {
+  harp.fingers = f;
+  try {
+    window.localStorage.setItem(FINGERS_KEY, f);
+  } catch {
+    // not remembered, still set
+  }
+  harp.changed();
+};
+export const nextFingers = () =>
+  setFingers(FINGERS[(FINGERS.indexOf(harp.fingers) + 1) % FINGERS.length]);
 
 export const setNight = (on: boolean) => {
   harp.night = on;
