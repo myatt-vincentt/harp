@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  barsOf,
   CHORD_MIDI,
   nextSongId,
   songBars,
@@ -55,6 +56,18 @@ describe("the songs", () => {
       expect(s.chords.length).toBe(songBars(s));
       s.chords.forEach((c) => expect(CHORD_MIDI[c]).toBeDefined());
     });
+  });
+
+  it("land Amazing Grace's bars after its upbeat", () => {
+    const grace = SONGS.find((s) => s.id === "grace")!;
+    const bars = barsOf(grace);
+    expect(bars[0]).toEqual({ start: 0, beats: 1 });
+    expect(bars[1]).toEqual({ start: 1, beats: 3 });
+    // The first full bar starts on "A-" (C4), with the I chord.
+    const starts = stepStarts(grace);
+    expect(STRINGS[grace.steps[starts.indexOf(1)].strings[0]].note).toBe("C4");
+    expect(grace.chords[1]).toBe("I");
+    expect(bars[bars.length - 1].start + 3).toBe(songBeats(grace));
   });
 
   it("start each step where the last one ends", () => {

@@ -69,9 +69,10 @@ export const SONG_CSS = `
 .vl-lane-sign { margin-top: 4px; font: 600 13px/1.1 system-ui, -apple-system, sans-serif; color: rgb(255 255 255 / .72); }
 .vl-lane-dot { width: 22px; height: 22px; border-radius: 50%; box-shadow: 0 0 14px currentColor; }
 .vl-countin { font: 700 40px/1 system-ui, -apple-system, sans-serif; color: ${ACCENT}; width: 64px; text-align: center; }
-.vl-upnext { display: flex; gap: 6px; align-items: center; color: rgb(255 255 255 / .55); }
-.vl-upnext span { display: flex; flex-direction: column; align-items: center; gap: 1px;
-  font: 600 11px/1 system-ui, -apple-system, sans-serif; }
+.vl-upnext { display: flex; gap: 10px; align-items: center; color: rgb(255 255 255 / .6); }
+.vl-upnext span { display: flex; align-items: center; gap: 4px;
+  font: 600 12px/1 system-ui, -apple-system, sans-serif; }
+.vl-upnext i { flex: none; width: 7px; height: 7px; border-radius: 50%; }
 .vl-bar { height: 4px; border-radius: 4px; background: rgb(255 255 255 / .14); overflow: hidden; }
 .vl-bar > div { height: 100%; background: ${ACCENT}; transform-origin: 0 50%; transition: transform 200ms linear; }
 .vl-spark { position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px; border-radius: 50%;
@@ -92,6 +93,20 @@ export const SONG_CSS = `
   transition: transform 160ms ease-out; }
 .vl-icon:active { transform: scale(0.94); }
 .vl-icon:focus-visible { box-shadow: 0 0 0 2px ${ACCENT}; outline: none; }
+/* A larger note card where there is room (a laptop): about 1.4×. */
+@media (min-width: 700px) and (min-height: 480px) {
+  .vl-lane { width: 276px; padding: 16px 20px; gap: 12px; border-radius: 24px; }
+  .vl-lane-head { gap: 16px; }
+  .vl-lane-pic { width: 88px; height: 88px; border-radius: 20px; }
+  .vl-lane-dot { width: 30px; height: 30px; }
+  .vl-lane-name { font-size: 34px; }
+  .vl-lane-sign { font-size: 17px; margin-top: 6px; }
+  .vl-countin { font-size: 56px; width: 88px; }
+  .vl-upnext { gap: 14px; }
+  .vl-upnext span { font-size: 16px; gap: 6px; }
+  .vl-upnext i { width: 10px; height: 10px; }
+  .vl-bar { height: 5px; }
+}
 @media (prefers-reduced-motion: reduce) { .vl-card, .vl-finish, .vl-lane, .vl-spark, .vl-flash { animation: none; } }
 `;
 
@@ -191,7 +206,7 @@ const useTicker = (on: boolean, ms = 100) => {
 };
 
 /** The note card: the step to play now, while a song runs. */
-const NoteCard = () => {
+const NoteCard = ({ top }: { top: number }) => {
   const s = harp.session;
   useTicker(!!s);
   const [hint, setHint] = useState(false);
@@ -215,6 +230,7 @@ const NoteCard = () => {
     <div
       className={`vl-lane vl-glass ${hint ? "hint" : ""}`}
       data-hud="note-card"
+      style={{ top }}
       role="status"
       aria-label={
         step ? `${KIND_NAME[step.kind]} ${stepName(step)}` : s.song.title
@@ -247,14 +263,7 @@ const NoteCard = () => {
           {upNext.map((x, k) => (
             // eslint-disable-next-line react/no-array-index-key
             <span key={k}>
-              <i
-                style={{
-                  width: 7,
-                  height: 7,
-                  borderRadius: "50%",
-                  background: stepColor(x),
-                }}
-              />
+              <i style={{ background: stepColor(x) }} />
               {SHORT[x.kind] ?? stepName(x)}
             </span>
           ))}
@@ -293,7 +302,11 @@ export const SongUI = ({
 
   return (
     <>
-      {harp.session ? <NoteCard /> : null}
+      {harp.session ? (
+        // Top left; on a narrow screen under the corner camera's height,
+        // clear of the corner's words.
+        <NoteCard top={width < 700 ? frame.top + frame.height + 12 : GUTTER} />
+      ) : null}
 
       {harp.songCard && !harp.session ? (
         <div
@@ -301,17 +314,24 @@ export const SongUI = ({
           data-hud="song-card"
           role="dialog"
           aria-label="Songs"
-          style={{
-            left: "50%",
-            transform: "translateX(-50%)",
-            ...(tall
+          // On a tall screen under the corner camera; on a wide one at the
+          // right, clear of the harp (which stands left of the middle).
+          style={
+            tall
               ? {
+                  left: "50%",
+                  transform: "translateX(-50%)",
                   top: frame.top + frame.height + 12,
                   width: "calc(100% - 32px)",
                   maxWidth: 380,
                 }
-              : { bottom: above, minWidth: 340 }),
-          }}
+              : {
+                  right: GUTTER,
+                  bottom: above,
+                  minWidth: 340,
+                  animation: "vl-fade 260ms both",
+                }
+          }
         >
           {SONGS.map((c) => (
             <div className="vl-row" key={c.id}>

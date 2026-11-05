@@ -439,7 +439,7 @@ export const Hud = () => {
             style={{
               right: GUTTER,
               top: GUTTER,
-              width: Math.min(frame.width, 220),
+              width: Math.min(220, width - 2 * GUTTER),
             }}
           >
             <NoCameraIcon />

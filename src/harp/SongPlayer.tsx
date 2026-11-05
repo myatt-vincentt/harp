@@ -15,7 +15,7 @@ import { useFrame } from "@react-three/fiber";
 import { sound } from "./audio";
 import { makeBacking, type Backing } from "./backing";
 import { COUNT_IN_BARS, Session, type Mode } from "./session";
-import { songBars, songById } from "./songs";
+import { barsOf, songById } from "./songs";
 import { harp, pluckHook } from "./state";
 
 /** Play's slower speed. */
@@ -133,13 +133,15 @@ export const SongPlayer = () => {
         );
         player.click += 1;
       }
-      while (player.bar < songBars(s.song)) {
-        const at = s.timeOf(player.bar * bpb);
+      const bars = barsOf(s.song);
+      while (player.bar < bars.length) {
+        const bar = bars[player.bar];
+        const at = s.timeOf(bar.start);
         if (at > now + LOOKAHEAD) break;
         player.backing.chord(
           s.song.chords[player.bar] ?? "I",
           toAudio(Math.max(now, at)),
-          bpb * s.secondsPerBeat,
+          bar.beats * s.secondsPerBeat,
         );
         player.bar += 1;
       }

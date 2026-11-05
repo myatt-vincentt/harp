@@ -22,8 +22,10 @@ export type Song = {
   title: string;
   bpm: number;
   beatsPerBar: number;
+  /** Beats before the first full bar (an upbeat; 0 or left out: none). */
+  pickup?: number;
   steps: SongStep[];
-  /** One chord per bar. */
+  /** One chord per bar (the pickup, if any, is the first bar). */
   chords: Chord[];
 };
 
@@ -153,6 +155,8 @@ export const SONGS: Song[] = [
     title: "Amazing Grace",
     bpm: 84,
     beatsPerBar: 3,
+    // The glissando is the upbeat: "A-" lands on the first bar.
+    pickup: 1,
     steps: [
       // A glissando up to the first note, as harpists do.
       gliss("C3", "G3", 1),
@@ -174,17 +178,17 @@ export const SONGS: Song[] = [
       gliss("C4", "C5", 3),
     ],
     chords: [
-      "I",
-      "I",
       "V",
+      "I",
+      "I",
       "IV",
       "I",
       "I",
       "I",
       "V",
-      "I",
-      "I",
       "V",
+      "I",
+      "I",
       "IV",
       "I",
       "I",
@@ -218,9 +222,23 @@ export const stepStarts = (song: Song) => {
 export const songBeats = (song: Song) =>
   song.steps.reduce((sum, x) => sum + x.beats, 0);
 
-/** How many bars the song fills. */
-export const songBars = (song: Song) =>
-  Math.ceil(songBeats(song) / song.beatsPerBar - 1e-9);
+/**
+ * The song's bars: where each starts and how long it is (beats). A pickup is
+ * a short first bar; the full bars follow it.
+ */
+export const barsOf = (song: Song) => {
+  const total = songBeats(song);
+  const bpb = song.beatsPerBar;
+  const pickup = song.pickup ?? 0;
+  const bars: Array<{ start: number; beats: number }> = [];
+  if (pickup > 0) bars.push({ start: 0, beats: pickup });
+  for (let b = pickup; b < total - 1e-9; b += bpb)
+    bars.push({ start: b, beats: bpb });
+  return bars;
+};
+
+/** How many bars the song fills (a pickup counts as one). */
+export const songBars = (song: Song) => barsOf(song).length;
 
 /** A step's name: "E4", "Roll C3 G3 E4", "Gliss C4 → C5". */
 export const stepName = (x: SongStep) => {
