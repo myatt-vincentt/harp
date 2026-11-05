@@ -1,0 +1,56 @@
+{
+    "notes": [
+        {
+            "midi": 45,
+            "file": "/sounds/harp-a2.m4a"
+        },
+        {
+            "midi": 48,
+            "file": "/sounds/harp-c3.m4a"
+        },
+        {
+            "midi": 52,
+            "file": "/sounds/harp-e3.m4a"
+        },
+        {
+            "midi": 55,
+            "file": "/sounds/harp-g3.m4a"
+        },
+        {
+            "midi": 59,
+            "file": "/sounds/harp-b3.m4a"
+        },
+        {
+            "midi": 62,
+            "file": "/sounds/harp-d4.m4a"
+        },
+        {
+            "midi": 65,
+            "file": "/sounds/harp-f4.m4a"
+        },
+        {
+            "midi": 69,
+            "file": "/sounds/harp-a4.m4a"
+        },
+        {
+            "midi": 72,
+            "file": "/sounds/harp-c5.m4a"
+        },
+        {
+            "midi": 76,
+            "file": "/sounds/harp-e5.m4a"
+        },
+        {
+            "midi": 79,
+            "file": "/sounds/harp-g5.m4a"
+        },
+        {
+            "midi": 83,
+            "file": "/sounds/harp-b5.m4a"
+        },
+        {
+            "midi": 86,
+            "file": "/sounds/harp-d6.m4a"
+        }
+    ]
+}
