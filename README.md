@@ -1,79 +1,46 @@
-# v2-template
+# Harp
 
-The Vincentt starter app: a real React + R3F + Vincentt XR SDK (`@vincentt-xr/sdk`)
-WebXR app. The dev server bundles with esbuild; the production build is the Vincentt CLI's
-`vincentt build`.
+A concert harp in a recording studio, played with your fingertips in the air. Its strings are
+drawn across your camera picture: pass a fingertip across them to pluck, sweep for a glissando.
+A gold ghost hand plays the harp with you, the strings you play glow gold and shake, and the
+studio's LED strips glow with the music. Your camera sits small in the top right corner.
 
-## Shape
+- **Start:** the home page shows while the studio, the harp and the sounds load; Start turns
+  the sound on and asks for the camera. Without a camera the studio opens anyway and you play
+  by dragging across the strings or with the keyboard.
+- **Plucking:** 22 strings, C3 to C6 (C strings red, F strings blue, as on a real harp). Pass a
+  fingertip across a string in the camera to pluck it; faster is louder. Sweep across many for
+  a glissando. Both hands play.
+- **Fingers:** the first dock button chooses which fingertips play: the index, the index and
+  middle (the default), or all five.
+- **Stopping:** make a fist with either hand to stop every string.
+- **Songs:** the music-note button opens the songs (Twinkle Twinkle, Ode to Joy, Brahms'
+  Lullaby, Amazing Grace, with rolled chords and glissandos). The next strings glow gold.
+  **Learn** waits for each note; **Play** keeps time with a soft backing and gives 1 to 3
+  stars; **Slower** plays at three-quarter speed.
+- **Without hands:** drag across the strings or tap one; keys A–K play C4 to C5, Shift an
+  octave up, Space a glissando, Esc stops.
+- **The dock:** Songs, Fingers, View (Front, Player, Close), Day / Night, How to play.
 
-```
-src/
-  main.tsx            mount — never edited
-  App.tsx             protected shell: XRProvider + FrameContainer +
-                      XRScene + media-source binding, camera, lighting,
-                      VideoBackground, PreviewAnchors — never edited
-  frame.config.ts     the frame: "phone" (9:16, default) or "full" (the viewport)
-  Scene.tsx           the agent's surface: add SDK components and R3F
-                      primitives here
-  PreviewAnchors.tsx  editor-preview integration — never edited
-```
-
-See `AGENTS.md` and `GROUNDING.md` for the API reference and how to author scenes.
-
-## Develop
-
-```
-pnpm install
-vincentt login    # once per machine; `vincentt create` registers a folder from `vincentt init`
-pnpm preview      # on-device preview over a secure tunnel: the address the developer gets
-pnpm dev          # esbuild dev server on localhost:5173 for your own checks (output in .dev/)
-pnpm typecheck
-pnpm build        # `vincentt build`: production bundle to dist/ (needs the CLI installed)
-vincentt publish  # upload dist/ and go live at <slug>.vincentt.app
-```
-
-The developer's path is the platform: sign in, preview, publish. `pnpm dev` is a local
-check; its address is never the one a developer or a phone is given.
-
-## Release
-
-`vincentt init` scaffolds from the **`latest` tag**, not from `main`. Merging to `main` does
-not ship a template to creators — cutting a release does.
+## Files
 
 ```
-git tag 1.1.0 <sha>      # bare semver, no `v` prefix
-git push origin 1.1.0    # the Release workflow verifies the tag, then moves `latest`
+src/harp/
+  HarpScene.tsx     the scene, loaded after the home page shows
+  Home.tsx          the home page
+  Hud.tsx           the dock and the how-to-play card
+  CameraRig.tsx     the views, fitted to the screen (layout.ts)
+  Studio.tsx        the room, its baked day / night light and the LEDs (led.ts)
+  Harp.tsx          the harp, the glowing, shaking strings and the sparks (strings.ts)
+  GhostHand.tsx     the gold hand (ghost.ts)
+  Hands.tsx         hand tracking: the air strings (air.ts, fingers.ts, oneEuro.ts)
+  NoteStrip.tsx     the last notes played
+  SongUI.tsx, SongPlayer.tsx, session.ts, songs.ts, backing.ts   Learn and Play
+  audio.ts, sampler.ts, synth.ts   the recorded harp, with a made-in-code voice as fallback
+  PointerInput.tsx  drags, taps and keys
+  CameraFrame.tsx   your camera in the corner, with the air strings drawn over it
+public/models/      the studio and its bakes, the harp and the gold hand
+public/sounds/      the harp samples (harp.json lists them)
 ```
 
-The Release workflow (`.github/workflows/release.yml`) installs from the frozen lockfile,
-builds, and typechecks **the tagged tree** before force-updating `latest` to it. A tag that
-fails leaves `latest` where it was, so a broken release cannot reach a new creator.
-
-The job runs in the `release` environment, which accepts bare-semver tags only. To re-run it by
-hand, dispatch it from the tag itself ("Use workflow from: 1.1.0"); a dispatch from `main` is
-refused.
-
-To correct a migration note without moving `latest`, fix the entry in `MIGRATION.md` on
-`main`, then dispatch the Release row workflow (`.github/workflows/release-row.yml`) from the
-newest tag with that tag as its input. It re-sends only the platform release row: no build,
-no tag move. It exists only on tags cut after it was added.
-
-**Never move `latest` by hand.** It is force-updated by that workflow and nowhere else; moving
-it manually decouples the pointer from the version it claims to be.
-
-Creators can pin a specific version — `vincentt init --template 1.0.0` — which is the escape
-hatch when a release turns out to be bad. That is why the version tags are immutable and only
-`latest` moves.
-
-### `MIGRATION.md` and the platform release row
-
-Root `MIGRATION.md` carries one entry per released tag, newest first, authored in the same
-PR as the change: `required: true|false`, a one-line summary, and optional notes bullets.
-`required: false` means no consumer action is needed, never that the entry was skipped. The
-Release workflow refuses to move `latest` for a tag with no valid entry, then — once `latest`
-has moved — posts that entry as this release's row to the platform (`POST
-/platform/releases`, component `template`), via `scripts/release-row.mjs`. Both steps read
-`MIGRATION.md` from `main`, not from the tagged tree: the note is reviewed via PR into `main`
-and is append-only per version, so `main`'s copy is the reviewed source for any tag, including
-one cut before this file existed. That row is what `vincentt outdated` reads back to tell a
-creator's agent what changed and what to do about it.
+Credits are in `CREDITS.md`.
